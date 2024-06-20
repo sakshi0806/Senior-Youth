@@ -1,0 +1,439 @@
+// POSTGRESQL
+
+                $pass = "vinita7";
+                $secure_pass = password_hash($pass, PASSWORD_BCRYPT);
+
+                echo $secure_pass;
+
+                $verify = password_verify($pass, $secure_pass);
+
+                if ($verify) {
+                    echo 'Password Verified!';
+                } else {
+                    echo 'Incorrect Password!';
+                }
+
+CREATE TABLE users (
+	user_id int not null unique,
+	username VARCHAR(50) NOT NULL,
+	email_id VARCHAR(30) NOT NULL,
+	password varchar(60) NOT null,
+	user_level int default 0,
+	role_id int,
+	primary key (user_id),
+);
+
+CREATE TABLE youth_data (
+	user_id int,
+	youth_id serial not null unique,
+	y_first_name VARCHAR(20) NOT NULL,
+	y_last_name VARCHAR(30) NOT NULL,
+	y_contact_no VARCHAR(10) ,
+	primary key (youth_id),
+	CONSTRAINT fk_users  
+	FOREIGN KEY(user_id)   
+	REFERENCES users(user_id) 
+	ON DELETE CASCADE
+);
+
+CREATE TABLE senior_data (
+	user_id int,
+	senior_id serial not null unique,
+	first_name VARCHAR(20) NOT NULL,
+	last_name VARCHAR(30) NOT NULL,
+	contact_no VARCHAR(10) ,
+	primary key (senior_id),
+	CONSTRAINT fk_users  
+	FOREIGN KEY(user_id)   
+	REFERENCES users(user_id) 
+	ON DELETE CASCADE
+);
+
+				
+CREATE TABLE youth (
+	y_user_id SERIAL NOT NULL UNIQUE,
+	y_username VARCHAR(50) NOT NULL,
+	y_first_name VARCHAR(20) NOT NULL,
+	y_last_name VARCHAR(30) NOT NULL,
+	y_email_id VARCHAR(30) NOT NULL UNIQUE,
+	y_password VARCHAR(16) NOT NULL,
+	y_user_level INT DEFAULT NULL,
+	PRIMARY KEY (user_id)
+);
+
+CREATE TABLE loginsignup (
+	user_id SERIAL NOT NULL UNIQUE,
+	username VARCHAR(50) NOT NULL,
+	first_name VARCHAR(20) NOT NULL,
+	last_name VARCHAR(30) NOT NULL,
+	email_id VARCHAR(30) NOT NULL UNIQUE,
+	pin VARCHAR(16) NOT NULL,
+	user_level INT DEFAULT NULL,
+	PRIMARY KEY (user_id)
+);
+
+
+
+ALTER TABLE loginsignup
+RENAME TO users;
+
+
+
+// connection link
+
+<?php
+
+define('DB_USER','root');
+define('DB_PASSWORD','');
+define('DB_HOST','localhost');
+define('DB_NAME','loginsignup');
+
+$dbcl = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
+//$dbcl = mysql_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
+
+if($dbcl->connect_error){
+    die('Could not connect to MySQL: '.$dbcl->connect_error);
+}
+else{
+    $dbcl->set_charset('utf8');
+}
+
+//logsignup
+
+<?php 
+$page_title = 'Home';
+$page_header_title = 'Home Page';
+include '../includes/preferences.php';
+
+if(isset($_SESSION['user_id'])){
+	header('Location: '.BASE_URL);
+	exit();
+}
+
+//REGISTER BUTTON
+if(filter_input(INPUT_POST,'register')){
+	require MYSQL;
+	$fn = $ln = $un = $p = $e = FALSE;
+	$errors = array();
+	$safeData = array_map('trim',filter_input_array(INPUT_POST, FILTER_SANITIZE_STRING));
+	if(filter_var($safeData['email'], FILTER_VALIDATE_EMAIL) && strlen($safeData['email']) <= 80){
+		$e = $dbcl->real_escape_string($safeData['email']);
+	}
+	else{
+		$errors['email'] = 'Please provide a valid email address';
+	}
+
+	// FIRST NAME
+	if(between($safeData['first_name'],2,20)){
+		$fn = $dbcl->real_escape_string($safeData['first_name']);
+	}
+	else{
+		$errors['first_name'] = 'First Name should be within 2-20 characters';
+	}
+
+	// LAST NAME
+	if(between($safeData['last_name'],2,40)){
+		$ln = $dbcl->real_escape_string($safeData['last_name']);
+	}
+	else{
+		$errors['last_name'] = 'Last Name should be within 2-40 characters';
+	}
+
+	// USERNAME
+	if(between($safeData['username'],5,50)){
+		$un = $dbcl->real_escape_string($safeData['username']);
+	}
+	else{
+		$errors['username'] = 'Username should be within 5-50 characters';
+	}
+
+	// PASSWORD
+	if(between($safeData['password'],8,20)){
+		if($safeData['password'] == $safeData['cpassword']){
+			$p = $dbcl->real_escape_string($safeData['password']);
+		}else{
+			$errors['cpassword'] = 'Password entered does not match.';
+		}
+	}
+	else{
+		$errors['password'] = 'Password should be within 8-20 characters';
+	}
+
+	if($fn && $ln && $un && $p && $e){
+		$taken = FALSE;
+		$query = "SELECT username, email_id FROM users" 
+				. " WHERE username = ? || email_id = ?";
+		$stmt = $dbcl->prepare($query);
+		$stmt->bind_param('ss',$un, $e);
+		$stmt->execute();
+		$stmt->bind_result($cun, $ce);
+		$stmt->fetch();
+		if($un == $cun){
+			$taken = TRUE;
+			$errors['username'] = 'Sorry, this username is already taken.';
+		}
+		if($e == $ce){
+			$taken = TRUE;
+			$errors['email'] = 'Sorry, this email is already registered.';
+		}
+		//echo 'lalalalaaaaaaaaaaaaaaaaaaaaaaaaa';
+		if(!$taken){
+			echo 'lalalalaaaaaaaaaaaaaaaaaaaaaaaaa';
+			$query = "INSERT INTO users"
+					. "(username, first_name, last_name, email_id, salt, active , password, "
+					. "registration_date)"
+					. "VALUES"
+					. "(?,?,?,?,?,?,AES_ENCRYPT(?,?),UTC_TIMESTAMP())";
+			$salt = substr(md5(uniqid(rand())), -20);
+			
+			$active = substr(sha1(uniqid(rand())), -32);
+			$stmt = $dbcl->prepare($query);
+			echo 'lalalalaaaaaaaaaaaaaaaaaaaaaaaaa';
+			$stmt->bind_param('ssssssss',$un, $fn, $ln, $e, $salt, $active, $p, $salt);
+			echo 'lalalalaaaaaaaaaaaaaaaaaaaaaaaaa';
+			$stmt->execute();
+			echo 'lalalalaaaaaaaaaaaaaaaaaaaaaaaaa';
+			if($stmt->affected_rows == 1){
+				echo "Thank you for registering.";
+				$_SESSION['msg'] = '<p>Your account is registered successfully.';
+				if(isset($_SESSION['msg'])){
+					echo $_SESSION['msg'];
+					unset($_SESSION['msg']);
+					session_destroy();
+					setcookie(session_name(),'',time()-3600);
+				}
+				echo 'lalalalaaaaaaaaaaaaaaaaaaaaaaaaa';
+				$stmt->close();
+				unset($stmt);
+				$dbcl->close();
+				unset($dbcl);
+				header('Location: http://localhost/SeniorYouth/login/logsignup.php');
+				exit();
+			}
+			else{
+				$general_msg = '<p>System error occured, ypur account could not be registered. ' .$stmt->error;
+			}
+		}
+		$stmt->close();
+				unset($stmt);
+				$dbcl->close();
+				unset($dbcl);
+	}
+
+}
+
+//LOGIN BUTTON
+if(filter_input(INPUT_POST,'login')){
+	require MYSQL;
+	echo "lalalallaaaaaaaaaaaaaaaaaaaaaa";
+	$errors = array();
+	$safePOST = array_map('trim',filter_input_array(INPUT_POST, FILTER_SANITIZE_STRING));
+	$id = $dbcl->real_escape_string($safePOST['id']);
+	$pass = $dbcl->real_escape_string($safePOST['password']);
+	$valid = TRUE;
+
+	$query = "SELECT AES_DECRYPT(password, salt),  user_level, user_id,"
+	."CONCAT_WS(' ',first_name,last_name) FROM users WHERE ";
+
+	if(filter_var($id, FILTER_VALIDATE_EMAIL) && strlen(id) <= 80){
+		$query .= "email = ? limit 1";
+	}
+	else{
+		$errors['id'] = 'Please enter a valid username/email address';
+		$valid = FALSE;
+	}
+
+	if(!between($pass, 8, 20)){
+		$errors['password'] = 'Please enter a valid password';
+		$valid = FALSE;
+	}
+
+	if($valid){
+		$stmt = $dbcl->prepare($query);
+		$stmt->bind_param('s',$id);
+		$stmt->execute();
+		$stmt->store_result();
+		$stmt->bind_result($realpass, $active, $user_level, $user_id, $full_name);
+		$stmt->fetch();
+		if($realpass == $pass){
+			$_SESSION = array(
+				'user_id' => $user_id,
+				'user_level' => $user_level,
+				'full_name' => $full_name
+			);
+			header('Location:'.BASE_URL);
+			exit();
+		}
+		else{
+			$msg = '<p> Incorrect credentials!</p>';
+		}	
+	}
+	else{
+		$msg = '<p>There is no such a user on the database.</p>';
+	}
+}
+
+?>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- <link rel="stylesheet" href="logincss.css"> -->
+</head>
+    
+<body>
+<div class="container" id="container">
+	<div class="form-container sign-up-container">
+		<?php
+		if(isset($_SESSION['msg'])){
+			echo $_SESSION['msg'];
+			unset($_SESSION['msg']);
+			session_destroy();
+			setcookie(session_name(),'',time()-3600);
+		}
+		echo isset($general_msg)?$general_msg:''; 
+		?>
+
+		<form action="logsignup.php" method="POST">
+			<h1>Create Account</h1>
+			<br>
+			<!-- <div class="social-container">
+				<a href="#" class="social"><i class="fab fa-facebook-f"></i></a>
+				<a href="#" class="social"><i class="fab fa-google-plus-g"></i></a>
+				<a href="#" class="social"><i class="fab fa-linkedin-in"></i></a>
+			</div> -->
+			<!-- <span>or use your email for registration</span> -->
+
+			<!-- FIRST NAME -->
+			<input type="text" placeholder="First Name" name="first_name" value="<?php  
+				echo isset($safeData['first_name'])?$safeData['first_name']:'';
+			?>"/>
+			<span>
+				<?php 
+				echo isset($errors['first_name'])?$errors['first_name']:''; 
+				?>
+			</span>
+
+			<!-- LAST NAME -->
+			<input type="text" placeholder="Last Name" name="last_name" value="<?php  
+				echo isset($safeData['last_name'])?$safeData['last_name']:'';
+			?>"/>
+			<span>
+				<?php echo isset($errors['last_name'])?$errors['last_name']:''; ?>
+			</span>
+			
+			<!-- EMAIL -->
+			<input type="email" placeholder="Email" name="email" value="<?php  
+				echo isset($safeData['email'])?$safeData['email']:'';
+			?>"/>
+			<span>
+				<?php echo isset($errors['email'])?$errors['email']:''; ?>
+			</span>
+			
+			<!-- USERNAME -->
+			<input type="text" placeholder="Username" name="username" value="<?php  
+				echo isset($safeData['username'])?$safeData['username']:'';
+			?>"/>
+			<span>
+				<?php echo isset($errors['username'])?$errors['username']:''; ?>
+			</span>
+			
+			<!-- PASSWORD -->
+			<input type="password" placeholder="Password" name="password" value="<?php  
+				echo isset($safeData['password'])?$safeData['password']:'';
+			?>"/>
+			<span>
+				<?php echo isset($errors['password'])?$errors['password']:''; ?>
+			</span>
+
+			<!-- CONFIRM PASSWORD -->
+			<input type="password" placeholder="Confirm Password" name="cpassword" value="<?php  
+				echo isset($safeData['cpassword'])?$safeData['cpassword']:'';
+			?>"/>
+			<span>
+				<?php echo isset($errors['cpassword'])?$errors['cpassword']:''; ?>
+			</span>
+
+			<br>
+			<button type="submit" name="register" value="register">Register</button>
+
+			<!-- <input type="submit" name="register" value="Register" /> -->
+		</form>
+	</div>
+	<div class="form-container sign-in-container">
+		<form action="#">
+			<h1>Login</h1>
+			<br>
+			<!-- <div class="social-container">
+				<a href="#" class="social"><i class="fab fa-facebook-f"></i></a>
+				<a href="#" class="social"><i class="fab fa-google-plus-g"></i></a>
+				<a href="#" class="social"><i class="fab fa-linkedin-in"></i></a>
+			</div>
+			<span>or use your account</span> -->
+			<!-- <input type="email" placeholder="Email" />
+			<input type="password" placeholder="Password" />
+			<a href="#">Forgot your password?</a>
+			<button>Sign In</button> -->
+
+
+			<!-- EMAIL/USERNAME -->
+			<input type="text" placeholder="Email/Username" value="<?php
+				echo isset($id)?$id:''; ?>"/>
+			<span>
+				<?php 
+				echo isset($errors['id'])?$errors['id']:''; ?>
+			</span>
+
+			<!-- PASSWORD -->
+			<input type="password" placeholder="Password" value="<?php
+				echo isset($pass)?$pass:''; ?>"/>
+			<span>
+				<?php 
+				echo isset($errors['password'])?$errors['password']:''; ?>
+			</span>
+			<a href="#">Forgot your password?</a>
+			<button type="submit" name="login" value="login">LogIn</button>
+
+		</form>
+	</div>
+	<div class="overlay-container">
+		<div class="overlay">
+			<div class="overlay-panel overlay-left">
+				<h1>Welcome Back!</h1>
+				<p>To keep connected with us please login with your personal info</p>
+				<button class="ghost" id="signIn">Sign In</button>
+			</div>
+			<div class="overlay-panel overlay-right">
+				<h1>Hello, Friend!</h1>
+				<p>Enter your personal details and start journey with us</p>
+				<button class="ghost" id="signUp">Sign Up</button>
+			</div>
+		</div>
+	</div>
+</div>
+ <script src="javascript.js"></script>
+    </body>
+<!--
+<footer>
+	<p>
+
+	</p>
+</footer>
+-->
+    
+
+</html>
+
+
+//SQL
+
+CREATE TABLE 'loginsignup' (
+	'user_id' INT(10) unsigned NOT NULL AUTO_INCREMENT UNIQUE,
+	'username' VARCHAR(50) NOT NULL,
+	'first_name' VARCHAR(20) NOT NULL,
+	'last_name' VARCHAR(30) NOT NULL,
+	'email_id' VARCHAR(30) NOT NULL UNIQUE,
+	'password' VARCHAR(15) NOT NULL,
+	'user_level' TINYINT(1) unsigned DEFAULT NULL,
+	PRIMARY KEY ('user_id')
+);
